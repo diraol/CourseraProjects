@@ -1,0 +1,148 @@
+---
+title: "Evaluation of the Central Limit Theorem"
+subtitle: "A study of the distribution of means from simulated exponential distributions"
+author: "Diego Rabatone Oliveira"
+date: ""
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE)
+opts_chunk$set(fig.width=4, fig.height=2, warning=FALSE, message=FALSE)
+options(digits = 3)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r, echo=FALSE, include=FALSE}
+#This is the part 1 of the final project for the Statistical Inference Course, 
+#offered by Johns Hopkins University at Coursera, as part of the Data Science 
+#Specialization.
+```
+# Overview
+We will do some simulations to investigate the exponencial distribution and
+compare these simulations to the expected theoretical exponencial distribution,
+using the **Central Limite Theorem** (CLT).
+
+The exponential distribution can be simulated in R with `rexp(n, `$\lambda$`)` 
+where `n` is the number of observations and $`\lambda`$ is the rate parameter. 
+The mean of exponential distribution is $\mu=\frac{1}{\lambda}$ and the standard
+deviation is also $\sigma=\frac{1}{\lambda}$. For this project we will use 
+$\lambda=0.2$ on all simulations, and then we will investigate the distribution 
+of the averages from 40 exponentials. This process we will be done a thousand
+times, in order to check the validity of the **CLT**.
+
+# The simulations
+Firstly let's set our main variables:
+```{r}
+# Setting parameters
+set.seed(1985)  # setting a seed in order to be able to reproduce the results
+nsim <- 1000  # number of simulations
+lambda <- 0.2
+n <- 40
+mu <- 1/lambda  # Theoretical mean
+sigma <- 1/lambda  # Theoretical standard deviation
+variance <- sigma^2  # Theoretical variance
+```
+
+Now we create an empty dataframe with 42 'columns', being the first the variable
+`MEAN`, the second 'VAR' and the followings will receive the `r n` observations
+of each simulation, in a way that our dataframe will have one line per
+simulation.
+```{r}
+sims <- data.frame('MEAN'=NA, 'VAR'=NA, as.list(numeric(n)))
+```
+
+For our simulations, first we store the simulated values on the datafarme, 
+passing `r NA` as the "current mean" and variance, and then we calculate the
+effective mean and variance of each simulation.
+```{r}
+for (sim in 1:nsim) {
+  # Producing the simulations and storing each simulation as one line on the df
+  sims[sim,] <- c(NA, NA, rexp(n, lambda))
+  # Calculating the mean for the given simulation and storing it on the MEAN variable.
+  sims[sim,'MEAN'] <- sims[sim,] %>% select(-MEAN,-VAR) %>% apply(1, FUN = mean)
+  sims[sim,'VAR'] <- sims[sim,] %>% select(-MEAN,-VAR) %>% apply(1, FUN = var)
+}
+```
+
+Let's see, as an example, the values from our first simulation.
+```{r, echo=FALSE}
+kable(head(sims[1:13],n=1))
+```
+
+## Sample Mean x Theoretical Mean
+For a exponential distribution with $\lambda=0.2$, the expected mean is 
+$\mu=\frac{1}{\lambda}=$ `r mu`. From our simulations, the average
+mean found was $mean(sims\$MEAN)=$ `r mean(sims$MEAN)`.
+
+Let's see a plot with the distribution of the calculated means from the
+simulations:
+```{r}
+ggplot(data=sims, aes(x=MEAN)) +
+  ggtitle('Sampled means distribution') +
+  geom_histogram(aes(y=..density.., fill='Simulations'), binwidth=0.1, alpha=0.6) +
+  geom_vline(xintercept=mean(sims$MEAN), linetype="dashed", col='red', size=0.7) +
+  geom_vline(xintercept=mu, linetype="dashed", col='blue', size=0.3) +
+  scale_x_continuous(breaks=round(seq(min(sims$MEAN), max(sims$MEAN), by=1))) +
+  xlab('Mean') + ylab('Density') + theme(legend.title=element_blank())
+```
+
+From the plot we can notice that the blue vertical line, that represents the
+theoretical mean, is right over the dashed red line, which is the mean from our
+simulations, showing how close those two means are.
+
+Verifying the simulated means with a T Test:
+```{r}
+t.test(sims$MEAN, conf.level=0.95)
+```
+
+We can observe that, with a 95% confidence interval, our p-value is equal to
+`r t.test(sims$MEAN, conf.level=0.95)$p.value` , so, we are able to state
+that our simulated means are equal to 5, which is our expected mean.
+
+## Sample Variance x Theoretical Variance
+Our overall variance can be calculated as the mean of the variances, which is 
+$mean(sims\$VAR)=$ `r mean(sims$VAR)`. The theoretical expected variance for the
+exponential distribution with $\lambda=0.2$ is $(\frac{1}{\lambda})^2$ =
+`r (1/lambda)^2`. So, we can observe that both variances are quite close one to
+each other.
+
+Now we can plot the variance for each simulation:
+```{r}
+ggplot(data=sims, aes(x=VAR)) +
+  ggtitle('Sampled variances distribution') +
+  geom_histogram(binwidth=3, alpha=0.6) +
+  geom_vline(xintercept=mean(sims$VAR), linetype="dashed", col='red', size=0.7) +
+  geom_vline(xintercept=variance, linetype="dashed", col='blue', size=0.3) +
+  scale_x_continuous(breaks=round(seq(min(sims$VAR), max(sims$VAR), by=10))) +
+  xlab('Variance') + ylab('Density') + theme(legend.title=element_blank())
+```
+
+And, from the plot, we can observe how the variance is centered on the expected
+variance (blue dashed line), and also how close the mean variance of our trial
+is to the expected variance.
+
+As we would expect from the **CLT**, if we did more simiulations our variance
+would get even closer to the expected one.
+
+## Distribution
+Now we evaluate the behaviour of the distribution, specially when compared to
+the normal distribution:
+```{r}
+ggplot(data=sims, aes(x=MEAN)) +
+  ggtitle('Sampled means x Normal') +
+  geom_histogram(aes(y=..density.., fill='Simulations'), binwidth=0.1, alpha=0.6) +
+  stat_function(fun=dnorm, color="blue", args=list(mean=mean(sims$MEAN), sd=sd(sims$MEAN))) + 
+  scale_x_continuous(breaks=round(seq(min(sims$MEAN), max(sims$MEAN), by=1))) +
+  xlab('Mean') + ylab('Density') + theme(legend.title=element_blank())
+```
+By plotting the distribution of the calculated means (red histogram) against the
+normal distribution (blue line) with mean $\mu$ and standard deviation $\sigma$,
+we can notice that the distribution of the calculated means is close to the 
+normal distribution, as we would expect based on the **Central Limit Theorem**. 
+If more simulations were done, then the simulated means distribution would look
+even more to the theoretical expected result.
+
+This report can be found at: https://github.com/diraol/CourseraProjects
