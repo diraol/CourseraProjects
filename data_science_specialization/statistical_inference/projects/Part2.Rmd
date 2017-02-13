@@ -131,3 +131,43 @@ confidence, and does not present relationship with how this vitamin is ingested.
 
 *The source code used to procude this report can be found at:*
 https://github.com/diraol/CourseraProjects
+\newpage
+# Appendix (Codes)
+Below are the codes used to buid this report:
+
+```{r, eval=FALSE, echo=TRUE}
+options(digits = 3)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(datasets)
+data("ToothGrowth")
+TG <- ToothGrowth
+glimpse(TG)
+summary(TG)
+TG$dose <- as.factor(TG$dose)
+ggplot(TG, aes(x=factor(dose), y=len)) + 
+  facet_grid(.~supp) +
+  geom_boxplot(aes(fill = supp)) +
+  labs(title="Tooth length by dosage and by type of supplement", 
+    x="Dose (mg/day)",
+    y="Tooth length")
+head(bind_rows(TG %>% group_by(dose, supp) %>% summarize(mean=mean(len), sd=sd(len)),
+      TG %>% group_by(dose) %>% summarize(supp=NA, mean=mean(len), sd=sd(len)),
+      TG %>% group_by(supp) %>% summarize(dose=NA, mean=mean(len), sd=sd(len))) %>%
+  arrange(dose, supp), n=11)
+test1 <- t.test(formula=len ~ supp, data=TG, var.equal = FALSE)
+test2.a <- TG %>% filter(dose==0.5 | dose==1) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+test2.b <- TG %>% filter(dose==0.5 | dose==2) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+test2.c <- TG %>% filter(dose==1 | dose==2) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+ta <- c('u_0.5-u_1=0', test2.a$p.value, test2.a$conf.int[1], test2.a$conf.int[2])
+tb <- c('u_0.5-u_2=0', test2.b$p.value, test2.b$conf.int[1], test2.b$conf.int[2])
+tc <- c('u_1-u_2=0', test2.c$p.value, test2.c$conf.int[1], test2.c$conf.int[2])
+cnames <- c('null hypothesis', 'p.value', 'conf.low', 'conf.high')
+result <- data.frame(0,0,0,0)
+colnames(result) <- cnames
+result[1,] <- ta
+result[2,] <- tb
+result[3,] <- tc
+result
+```
