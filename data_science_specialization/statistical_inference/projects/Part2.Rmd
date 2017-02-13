@@ -1,0 +1,133 @@
+---
+title: "The Effect of Vitamin C on Tooth Growth in Guinea Pigs"
+subtitle: "A basic data analysis"
+author: "Diego Rabatone Oliveira"
+date: ""
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE)
+opts_chunk$set(fig.width=4, fig.height=3, warning=FALSE, message=FALSE)
+options(digits = 3)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(datasets)
+```
+
+# Overview
+This is the part 2 of the final project for the Statistical Inference Course,
+offered by Johns Hopkins University at Coursera, as part of the Data Science
+Specialization. This project consists a basic exploratory data analysis of the
+ToothGrowth dataset (from R datasets package).
+
+# Loading the data and doing some exploratory analysis
+Let's start by loading our dataset:
+```{r}
+data("ToothGrowth")
+TG <- ToothGrowth
+glimpse(TG)
+```
+
+As we can see, this dataset contains 60 observations with 3 variables (**len** 
+(dbl), **sup** (fact: *OJ* and *VC*) and **dose** (dbl)). Looking at the 
+`help(ToothGrowth)`, we can see that **dose** is a measure in **mg**, growth
+does not present a unit measure, and *OJ* stands for *OrangeJuice* and *VC* for
+*Ascorbic Acid*, both being delivery methods from Vitamin C. And all these data
+came from a study of the "*Effect of Vitamin C on Tooth Growth in Guinea Pigs*".
+
+# Dataset Summary
+Let's now do some summaries from our dataset:
+```{r}
+summary(TG)
+```
+
+The **dose** variable, despite being numeric, only presents the values (0.5, 1 
+and 2). Thus, we will convert it to a factor variable in order to threat them as
+groups.
+```{r}
+TG$dose <- as.factor(TG$dose)
+```
+
+Now let's do some boxplotting to observe the overall behaviour of these three 
+variables togheter, and we are also going to calculate the mean and standard
+deviation of the tooth *length*, grouped by *dose* and *supp*, only *dose* and
+only *supp*:
+```{r}
+ggplot(TG, aes(x=factor(dose), y=len)) + 
+  facet_grid(.~supp) +
+  geom_boxplot(aes(fill = supp)) +
+  labs(title="Tooth length by dosage and by type of supplement", 
+    x="Dose (mg/day)",
+    y="Tooth length")
+head(bind_rows(TG %>% group_by(dose, supp) %>% summarize(mean=mean(len), sd=sd(len)),
+      TG %>% group_by(dose) %>% summarize(supp=NA, mean=mean(len), sd=sd(len)),
+      TG %>% group_by(supp) %>% summarize(dose=NA, mean=mean(len), sd=sd(len))) %>%
+  arrange(dose, supp), n=11)
+```
+From the boxplot above and  the table, it looks like there is a tendency that
+the higher the dosage, the larger the tooth length. But let's do some tests to
+verify or refute this hypothesis
+
+# Confidence Interval and Hypothesis Testing
+Our dataset is not too large, n=`r nrow(TG)`, and when grouping the observations
+it will be even smaller (`n/2` on the best case, grouping only by *supp*). So,
+our standard errors tends to be bigger than what we would want. Therefore, we
+will need to use the `T distribution` for our hypotesis tests. We are assuming
+that the given data respects the `Independent and identically distributed random
+variables (i.i.d)` criteria, despite no information about this was given.
+
+We are going to start with two tests, and, depending on its results we will do 
+another complementary test.
+
+## Supplement types (**supp**)
+```{r}
+test1 <- t.test(formula=len ~ supp, data=TG, var.equal = FALSE)
+```
+Here our hypothesis is that there are differences between the mean tooth length
+among the groups that received different supplements:
+$H_0: \mu_{OJ} \neq \mu_{VC}$. The test 
+`t.test(formula=len ~ supp, data=TG, var.equal = FALSE)` results in a `p-value`
+of `r test1$p.value`, which is larger than the significance value of 0.05. Being
+so, we *fail to reject the null hypothesis* that there are differences on the
+means between the *OJ* and the *VC* groups.
+
+## Dosage (**dose**)
+```{r}
+test2.a <- TG %>% filter(dose==0.5 | dose==1) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+test2.b <- TG %>% filter(dose==0.5 | dose==2) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+test2.c <- TG %>% filter(dose==1 | dose==2) %>% t.test(formula=len ~ dose, data=., var.equal=FALSE)
+ta <- c('u_0.5-u_1=0', test2.a$p.value, test2.a$conf.int[1], test2.a$conf.int[2])
+tb <- c('u_0.5-u_2=0', test2.b$p.value, test2.b$conf.int[1], test2.b$conf.int[2])
+tc <- c('u_1-u_2=0', test2.c$p.value, test2.c$conf.int[1], test2.c$conf.int[2])
+cnames <- c('null hypothesis', 'p.value', 'conf.low', 'conf.high')
+result <- data.frame(0,0,0,0)
+colnames(result) <- cnames
+result[1,] <- ta
+result[2,] <- tb
+result[3,] <- tc
+```
+Now, our hypothesis is that there are differences between the mean tooth length 
+among the groups that received different dosages, independently of the 
+supplement type. Here, as we have three different levels of dosage, we will need
+to do three t-tests to cover the possible combinations. The results of these
+tests are below:
+```{r}
+result
+```
+So, on the three tests done the `p-values` where smalled than the significance
+level of 0.05, which means that we **reject the null hypothesis** of not
+existing difference between the observations while varying the dosage. So, our
+data have strong evidence that the vitamin C dosage influences the average tooth
+length on guinea pigs with 95% of confidence.
+
+## Conclusions
+Considering the tests done and graphs evaluated, we can conclude that, 
+statistically speaking, the Guinea Pigs tooth length presents a strong
+relationship with the vitamin C consumption in terms of dose levels, with a 95%
+confidence, and does not present relationship with how this vitamin is ingested.
+
+*The source code used to procude this report can be found at:*
+https://github.com/diraol/CourseraProjects
